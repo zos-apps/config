@@ -1,0 +1,33 @@
+{
+  "name": "@zos-apps/config",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared configuration for zOS apps",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./tsconfig": "./tsconfig.base.json",
+    "./tsup": "./tsup.base.js",
+    "./eslint": "./eslint.config.js"
+  },
+  "files": [
+    "src",
+    "tsconfig.base.json",
+    "tsup.base.js",
+    "eslint.config.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zos-apps/config.git"
+  },
+  "author": "Hanzo AI",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

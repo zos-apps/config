@@ -23,7 +23,7 @@ export const baseConfig = {
   dts: true,
   sourcemap: true,
   clean: true,
-  external: ['react', 'react-dom', '@z-os/sdk', '@z-os/ui', '@z-os/core'],
+  external: ['react', 'react-dom', '@z-os/sdk', '@z-os/ui', '@z-os/core', 'lucide-react'],
   treeshake: true,
   minify: true,
 };

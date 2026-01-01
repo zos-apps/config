@@ -1,0 +1,438 @@
+/**
+ * @zos-apps/config - Shared React Hooks
+ * 
+ * Common hooks used across zOS applications to reduce boilerplate
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import type { GameState, KeyMap, TimerState } from './types';
+
+/**
+ * useKeyboard - Simplified keyboard event handling
+ * 
+ * @example
+ * ```tsx
+ * useKeyboard({
+ *   ArrowUp: 'up',
+ *   ArrowDown: 'down', 
+ *   ' ': 'pause',
+ * }, (action) => {
+ *   if (action === 'pause') togglePause();
+ *   else move(action);
+ * }, { enabled: !gameOver });
+ * ```
+ */
+export function useKeyboard<T extends string>(
+  keyMap: KeyMap<T>,
+  handler: (action: T, event: KeyboardEvent) => void,
+  options: { enabled?: boolean; preventDefault?: boolean } = {}
+): void {
+  const { enabled = true, preventDefault = true } = options;
+  const handlerRef = useRef(handler);
+  handlerRef.current = handler;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const action = keyMap[e.key];
+      if (action !== undefined) {
+        if (preventDefault) e.preventDefault();
+        handlerRef.current(action, e);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [keyMap, enabled, preventDefault]);
+}
+
+/**
+ * useGameLoop - Game loop with configurable interval
+ * 
+ * @example
+ * ```tsx
+ * useGameLoop(() => {
+ *   moveSnake();
+ *   checkCollision();
+ * }, 100, !isPaused && !gameOver);
+ * ```
+ */
+export function useGameLoop(
+  callback: () => void,
+  interval: number,
+  enabled: boolean = true
+): void {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const id = setInterval(() => callbackRef.current(), interval);
+    return () => clearInterval(id);
+  }, [interval, enabled]);
+}
+
+/**
+ * useHighScore - Persistent high score with localStorage
+ * 
+ * @example
+ * ```tsx
+ * const { highScore, updateHighScore, resetHighScore } = useHighScore('snake');
+ * // Later:
+ * if (score > highScore) updateHighScore(score);
+ * ```
+ */
+export function useHighScore(key: string, initialValue: number = 0) {
+  const storageKey = `zos-${key}-highscore`;
+  
+  const [highScore, setHighScore] = useState<number>(() => {
+    if (typeof window === 'undefined') return initialValue;
+    const saved = localStorage.getItem(storageKey);
+    return saved ? parseInt(saved, 10) : initialValue;
+  });
+
+  const updateHighScore = useCallback((score: number) => {
+    if (score > highScore) {
+      setHighScore(score);
+      localStorage.setItem(storageKey, score.toString());
+      return true;
+    }
+    return false;
+  }, [highScore, storageKey]);
+
+  const resetHighScore = useCallback(() => {
+    setHighScore(initialValue);
+    localStorage.removeItem(storageKey);
+  }, [initialValue, storageKey]);
+
+  return { highScore, updateHighScore, resetHighScore };
+}
+
+/**
+ * useGameState - Common game state management
+ * 
+ * @example
+ * ```tsx
+ * const { state, start, pause, resume, gameOver, reset, addScore } = useGameState();
+ * ```
+ */
+export function useGameState(initialState?: Partial<GameState>) {
+  const [state, setState] = useState<GameState>({
+    score: 0,
+    level: 1,
+    isPlaying: false,
+    isPaused: true,
+    isGameOver: false,
+    ...initialState,
+  });
+
+  const start = useCallback(() => {
+    setState(s => ({ ...s, isPlaying: true, isPaused: false, isGameOver: false }));
+  }, []);
+
+  const pause = useCallback(() => {
+    setState(s => ({ ...s, isPaused: true }));
+  }, []);
+
+  const resume = useCallback(() => {
+    setState(s => ({ ...s, isPaused: false }));
+  }, []);
+
+  const togglePause = useCallback(() => {
+    setState(s => ({ ...s, isPaused: !s.isPaused }));
+  }, []);
+
+  const gameOver = useCallback(() => {
+    setState(s => ({ ...s, isPlaying: false, isGameOver: true }));
+  }, []);
+
+  const reset = useCallback(() => {
+    setState({
+      score: 0,
+      level: 1,
+      isPlaying: false,
+      isPaused: true,
+      isGameOver: false,
+      ...initialState,
+    });
+  }, [initialState]);
+
+  const addScore = useCallback((points: number) => {
+    setState(s => ({ ...s, score: s.score + points }));
+  }, []);
+
+  const setLevel = useCallback((level: number) => {
+    setState(s => ({ ...s, level }));
+  }, []);
+
+  return {
+    state,
+    start,
+    pause,
+    resume,
+    togglePause,
+    gameOver,
+    reset,
+    addScore,
+    setLevel,
+    // Convenience getters
+    score: state.score,
+    level: state.level,
+    isPlaying: state.isPlaying,
+    isPaused: state.isPaused,
+    isGameOver: state.isGameOver,
+  };
+}
+
+/**
+ * useTimer - Game timer with start/stop/reset
+ * 
+ * @example
+ * ```tsx
+ * const { elapsed, isRunning, start, stop, reset } = useTimer();
+ * ```
+ */
+export function useTimer(autoStart: boolean = false): TimerState & {
+  start: () => void;
+  stop: () => void;
+  reset: () => void;
+  toggle: () => void;
+} {
+  const [elapsed, setElapsed] = useState(0);
+  const [isRunning, setIsRunning] = useState(autoStart);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        setElapsed(t => t + 1);
+      }, 1000);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning]);
+
+  const start = useCallback(() => setIsRunning(true), []);
+  const stop = useCallback(() => setIsRunning(false), []);
+  const reset = useCallback(() => {
+    setElapsed(0);
+    setIsRunning(false);
+  }, []);
+  const toggle = useCallback(() => setIsRunning(r => !r), []);
+
+  return { elapsed, isRunning, start, stop, reset, toggle };
+}
+
+/**
+ * useLocalStorage - Generic localStorage hook with type safety
+ * 
+ * @example
+ * ```tsx
+ * const [settings, setSettings] = useLocalStorage('game-settings', defaultSettings);
+ * ```
+ */
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T
+): [T, (value: T | ((prev: T) => T)) => void] {
+  const storageKey = `zos-${key}`;
+
+  const [storedValue, setStoredValue] = useState<T>(() => {
+    if (typeof window === 'undefined') return initialValue;
+    try {
+      const item = localStorage.getItem(storageKey);
+      return item ? JSON.parse(item) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  const setValue = useCallback((value: T | ((prev: T) => T)) => {
+    setStoredValue(prev => {
+      const nextValue = value instanceof Function ? value(prev) : value;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(nextValue));
+      } catch (e) {
+        console.warn(`Failed to save to localStorage:`, e);
+      }
+      return nextValue;
+    });
+  }, [storageKey]);
+
+  return [storedValue, setValue];
+}
+
+/**
+ * useAnimationFrame - RequestAnimationFrame hook for smooth animations
+ * 
+ * @example
+ * ```tsx
+ * useAnimationFrame((deltaTime) => {
+ *   updatePosition(deltaTime);
+ * }, isAnimating);
+ * ```
+ */
+export function useAnimationFrame(
+  callback: (deltaTime: number) => void,
+  enabled: boolean = true
+): void {
+  const callbackRef = useRef(callback);
+  const previousTimeRef = useRef<number>();
+  const frameRef = useRef<number>();
+
+  callbackRef.current = callback;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const animate = (time: number) => {
+      if (previousTimeRef.current !== undefined) {
+        const deltaTime = time - previousTimeRef.current;
+        callbackRef.current(deltaTime);
+      }
+      previousTimeRef.current = time;
+      frameRef.current = requestAnimationFrame(animate);
+    };
+
+    frameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, [enabled]);
+}
+
+/**
+ * useGrid - Create and manage a 2D grid
+ * 
+ * @example
+ * ```tsx
+ * const { grid, setCell, getCell, fill, clear } = useGrid(10, 20, null);
+ * ```
+ */
+export function useGrid<T>(
+  width: number,
+  height: number,
+  initialValue: T
+) {
+  const createGrid = useCallback(() => 
+    Array(height).fill(null).map(() => Array(width).fill(initialValue)),
+    [width, height, initialValue]
+  );
+
+  const [grid, setGrid] = useState<T[][]>(createGrid);
+
+  const setCell = useCallback((x: number, y: number, value: T) => {
+    setGrid(g => {
+      const newGrid = g.map(row => [...row]);
+      if (y >= 0 && y < height && x >= 0 && x < width) {
+        newGrid[y][x] = value;
+      }
+      return newGrid;
+    });
+  }, [width, height]);
+
+  const getCell = useCallback((x: number, y: number): T | undefined => {
+    if (y >= 0 && y < height && x >= 0 && x < width) {
+      return grid[y][x];
+    }
+    return undefined;
+  }, [grid, width, height]);
+
+  const fill = useCallback((value: T) => {
+    setGrid(Array(height).fill(null).map(() => Array(width).fill(value)));
+  }, [width, height]);
+
+  const clear = useCallback(() => {
+    setGrid(createGrid());
+  }, [createGrid]);
+
+  return { grid, setGrid, setCell, getCell, fill, clear };
+}
+
+/**
+ * useWindowSize - Track window dimensions for responsive layouts
+ *
+ * @example
+ * ```tsx
+ * const { width, height, isMobile, isTablet, isDesktop } = useWindowSize();
+ *
+ * return isMobile ? <MobileLayout /> : <DesktopLayout />;
+ * ```
+ */
+export function useWindowSize() {
+  const [size, setSize] = useState(() => ({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    height: typeof window !== 'undefined' ? window.innerHeight : 768,
+  }));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return {
+    width: size.width,
+    height: size.height,
+    isMobile: size.width < 768,
+    isTablet: size.width >= 768 && size.width < 1024,
+    isDesktop: size.width >= 1024,
+  };
+}
+
+/**
+ * useDebounce - Debounce a value or callback
+ *
+ * @example
+ * ```tsx
+ * // Debounce a value
+ * const [query, setQuery] = useState('');
+ * const debouncedQuery = useDebounce(query, 300);
+ *
+ * useEffect(() => {
+ *   search(debouncedQuery);
+ * }, [debouncedQuery]);
+ * ```
+ */
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+/**
+ * usePrevious - Track the previous value of a state
+ *
+ * @example
+ * ```tsx
+ * const [count, setCount] = useState(0);
+ * const prevCount = usePrevious(count);
+ * // prevCount is the value of count before the last render
+ * ```
+ */
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref.current;
+}

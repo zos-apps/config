@@ -1,21 +1,39 @@
 {
   "name": "@zos-apps/config",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
-  "description": "Shared configuration for zOS apps",
-  "main": "./src/index.js",
+  "description": "Shared configuration, types, and hooks for zOS apps",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./tsconfig": "./tsconfig.base.json",
     "./tsup": "./tsup.base.js",
-    "./eslint": "./eslint.config.js"
+    "./eslint": "./eslint.config.js",
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks.d.ts",
+      "import": "./dist/hooks.js"
+    }
   },
   "files": [
+    "dist",
     "src",
     "tsconfig.base.json",
     "tsup.base.js",
     "eslint.config.js"
   ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zos-apps/config.git"
@@ -27,7 +45,13 @@
     "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
+    "react": "^18.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2"
   }
 }
